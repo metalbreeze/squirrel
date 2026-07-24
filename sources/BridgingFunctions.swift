@@ -85,3 +85,15 @@ extension NSPoint {
     sqrt(pow(self.x, 2) + pow(self.y, 2))
   }
 }
+
+extension RimeStringSlice {
+  /// Bridge the slice's pointer + length to a Swift String, honoring `.length`.
+  /// librime clips `.length` to the first Unicode character for abbreviated labels
+  /// when no explicit `abbrev:` field is defined, so reading past `.length` (e.g. with
+  /// `String(cString:)`) would incorrectly return the full `states:` value.
+  var asString: String? {
+    guard let ptr = str else { return nil }
+    let data = Data(bytes: UnsafeRawPointer(ptr), count: Int(length))
+    return String(data: data, encoding: .utf8)
+  }
+}

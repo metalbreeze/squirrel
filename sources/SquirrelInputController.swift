@@ -194,6 +194,30 @@ final class SquirrelInputController: IMKInputController {
     if keyboardLayout != "" {
       client?.overrideKeyboard(withKeyboardNamed: keyboardLayout)
     }
+    // Switching to Squirrel produces no flagsChanged event, so a Caps Lock
+    // already engaged in the previous input source would go unnoticed by Rime.
+    // NSEvent.modifierFlags only reflects this process's own event stream and
+    // is stale here; query the session-wide hardware state instead.
+    let capsLockOn = CGEventSource.flagsState(.combinedSessionState).contains(.maskAlphaShift)
+    // Do NOT force ascii_mode from a pre-existing Caps Lock here: macOS clears
+    // Caps Lock whenever the input source changes, so a Caps Lock observed at
+    // activation is transient — acting on it raced against that clearing and
+    // left ascii_mode stuck on with no way for Rime to learn caps was dropped.
+    // Instead, only repaint the icon from the session's actual state; it may
+    // be stale because a fresh session created with switches/@N/reset: 1
+    // never fires an option notification.
+    if session != 0 && rimeAPI.find_session(session) {
+      let asciiMode = rimeAPI.get_option(session, "ascii_mode")
+      let label = "ascii_mode".withCString { name in
+        rimeAPI.get_state_label_abbreviated(session, name, asciiMode, true).asString
+      }
+      NSApp.squirrelAppDelegate.updateStatusIcon(asciiMode: asciiMode, schemaLabel: label)
+    }
+    if capsLockOn {
+      lastModifiers.insert(.capsLock)
+    } else {
+      lastModifiers.remove(.capsLock)
+    }
     preedit = ""
   }
 
